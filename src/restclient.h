@@ -21,6 +21,7 @@
 
 #include <QObject>
 #include <QUrl>
+#include <QVariantMap>
 
 class RestClientPrivate;
 class QNetworkReply;
@@ -29,10 +30,18 @@ class RestClient : public QObject
 {
     Q_OBJECT
 public:
+    void destroy();
+    static RestClient *instance();
+
+    QNetworkReply *get(const QUrl &url);
+    QNetworkReply *post(const QUrl &url, const QByteArray &data);
+
+signals:
+    void requestFinished(QNetworkReply *reply);
+
+private:
     explicit RestClient(QObject *parent = 0);
     virtual ~RestClient();
-
-    QNetworkReply *request(const QUrl &url);
 
 private:
     Q_DECLARE_PRIVATE(RestClient)

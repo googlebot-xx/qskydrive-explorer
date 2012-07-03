@@ -67,6 +67,12 @@ QVariant SkyDriveFileListModel::data(const QModelIndex &index, int role) const
             return d->fileList.at(index.row()).value("type", "unknown");
         else if (role == SkyDriveFileListModel::IdRole)
             return d->fileList.at(index.row()).value("id", "");
+        else if (role == SkyDriveFileListModel::DataRole)
+            return d->fileList.at(index.row());
+        else if (role == SkyDriveFileListModel::ParentIdRole)
+            return d->fileList.at(index.row()).value("parent_id", "");
+        else if (role == SkyDriveFileListModel::SourceRole)
+            return d->fileList.at(index.row()).value("source", "");
     }
     return QVariant();
 }

@@ -19,6 +19,7 @@
 #include "restclient.h"
 
 #include <QNetworkAccessManager>
+#include <QNetworkProxy>
 #include <QNetworkReply>
 
 class RestClientPrivate
@@ -35,17 +36,27 @@ public:
         delete networkManager;
     }
 
+    void connectToNetworkManager()
+    {
+        Q_Q(RestClient);
+        q->connect(networkManager, SIGNAL(finished(QNetworkReply*)), q, SIGNAL(requestFinished(QNetworkReply*)));
+    }
+
 private:
     Q_DECLARE_PUBLIC(RestClient)
     RestClient *q_ptr;
 
     QNetworkAccessManager *networkManager;
+
+    static RestClient *instance;
 };
+RestClient *RestClientPrivate::instance = 0;
 
 RestClient::RestClient(QObject *parent) :
     QObject(parent), d_ptr(new RestClientPrivate)
 {
     d_ptr->q_ptr = this;
+    d_ptr->connectToNetworkManager();
 }
 
 RestClient::~RestClient()
@@ -53,11 +64,34 @@ RestClient::~RestClient()
     delete d_ptr;
 }
 
-QNetworkReply *RestClient::request(const QUrl &url)
+QNetworkReply *RestClient::get(const QUrl &url)
 {
     Q_D(RestClient);
+    qDebug() << Q_FUNC_INFO << url;
     QNetworkRequest request;
     request.setUrl(url);
     return d->networkManager->get(request);
 }
 
+QNetworkReply *RestClient::post(const QUrl &url, const QByteArray &data)
+{
+    Q_D(RestClient);
+    qDebug() << Q_FUNC_INFO << url << data;
+    QNetworkRequest request;
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
+    request.setUrl(url);
+    return d->networkManager->post(request, data);
+}
+
+RestClient *RestClient::instance()
+{
+    if (!RestClientPrivate::instance)
+        RestClientPrivate::instance = new RestClient;
+    return RestClientPrivate::instance;
+}
+
+void RestClient::destroy()
+{
+    delete RestClientPrivate::instance;
+    RestClientPrivate::instance = 0;
+}

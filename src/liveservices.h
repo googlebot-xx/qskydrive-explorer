@@ -21,6 +21,9 @@
 
 #include <QObject>
 
+class LiveServicesPrivate;
+class SkyDriveService;
+
 class LiveServices : public QObject
 {
     Q_OBJECT
@@ -28,8 +31,22 @@ public:
     explicit LiveServices(QObject *parent = 0);
     virtual ~LiveServices();
 
+    SkyDriveService *skyDriveService();
+    const QString &accessToken() const;
+
+signals:
+    void signInSucceded();
+    void signInFailed();
+
+public slots:
     void signIn();
 
+private:
+    Q_PRIVATE_SLOT(d_func(), void _q_checkSignInReply())
+
+private:
+    Q_DECLARE_PRIVATE(LiveServices)
+    LiveServicesPrivate *d_ptr;
 };
 
 #endif // LIVESERVICES_H

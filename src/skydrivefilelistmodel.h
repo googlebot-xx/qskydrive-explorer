@@ -30,7 +30,10 @@ public:
 
     enum Roles {
         TypeRole = Qt::UserRole + 1,
-        IdRole
+        IdRole,
+        DataRole,
+        ParentIdRole,
+        SourceRole
     };
 
     explicit SkyDriveFileListModel(QObject *parent = 0);

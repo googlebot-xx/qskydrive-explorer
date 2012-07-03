@@ -31,17 +31,17 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = 0);
     virtual ~MainWindow();
-    
+
 signals:
-    
+
+protected:
+    void closeEvent(QCloseEvent *event);
+
 private slots:
     void signIn();
-    void checkSignInSuccess(const QUrl &url);
-    void checkRequestsPermissions(bool ok);
-
-    void loadFolderList(const QString &folderId = "");
-    void folderListReady();
     void openRemoteItem(const QModelIndex &index);
+    void displayFolderList(const QVariant &data);
+    void navigateBack();
 
 private:
     Q_DECLARE_PRIVATE(MainWindow)

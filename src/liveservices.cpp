@@ -18,11 +18,103 @@
 
 #include "liveservices.h"
 
-LiveServices::LiveServices(QObject *parent) :
-    QObject(parent)
+#include "restclient.h"
+#include "skydriveservice.h"
+#include "settings.h"
+
+#include <QNetworkReply>
+#include <qjson/parser.h>
+
+#include <QDebug>
+
+class LiveServicesPrivate
 {
+public:
+    LiveServicesPrivate() :
+        pendingSignInReply(0),
+        skyDriveService(0)
+    {
+        refreshToken = Settings::instance()->value("live/refreshToken").toString();
+        authorizationToken = Settings::instance()->value("live/authorizationToken").toString();
+    }
+
+    ~LiveServicesPrivate()
+    {
+    }
+
+    void _q_checkSignInReply()
+    {
+        Q_Q(LiveServices);
+        QVariantMap reply = parser.parse(pendingSignInReply).toMap();
+        accessToken = reply.value("access_token").toString();
+
+        qDebug() << Q_FUNC_INFO << reply;
+
+        pendingSignInReply->deleteLater();
+        pendingSignInReply = 0;
+
+//        qDebug() << Q_FUNC_INFO << accessToken;
+
+        if (!accessToken.isEmpty())
+            emit q->signInSucceded();
+    }
+
+private:
+    Q_DECLARE_PUBLIC(LiveServices)
+    LiveServices *q_ptr;
+
+    QNetworkReply *pendingSignInReply;
+    SkyDriveService *skyDriveService;
+
+    QString refreshToken;
+    QString authorizationToken;
+
+    QString accessToken;
+    QJson::Parser parser;
+};
+
+LiveServices::LiveServices(QObject *parent) :
+    QObject(parent), d_ptr(new LiveServicesPrivate)
+{
+    d_ptr->q_ptr = this;
 }
 
 LiveServices::~LiveServices()
 {
+    delete d_ptr;
 }
+
+SkyDriveService *LiveServices::skyDriveService()
+{
+    Q_D(LiveServices);
+    if (!d->skyDriveService)
+        d->skyDriveService = new SkyDriveService(this);
+    return d->skyDriveService;
+}
+
+void LiveServices::signIn()
+{
+    Q_D(LiveServices);
+
+    QUrl url;
+    url.setHost("login.live.com");
+    url.setScheme("https");
+    url.setPath("/oauth20_token.srf");
+
+    QUrl queryItems;
+    queryItems.addQueryItem("client_id", "000000004C0C2510");
+    queryItems.addQueryItem("redirect_uri", "https://login.live.com/oauth20_desktop.srf");
+    queryItems.addQueryItem("grant_type", "refresh_token");
+    queryItems.addQueryItem("refresh_token", d->refreshToken);
+
+    d->pendingSignInReply = RestClient::instance()->post(url, queryItems.encodedQuery());
+    connect(d->pendingSignInReply, SIGNAL(finished()), this, SLOT(_q_checkSignInReply()));
+}
+
+const QString &LiveServices::accessToken() const
+{
+    Q_D(const LiveServices);
+    return d->accessToken;
+}
+
+#include "moc_liveservices.cpp"

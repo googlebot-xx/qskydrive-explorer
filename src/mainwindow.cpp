@@ -23,8 +23,15 @@
 #include <QPushButton>
 #include <QListView>
 #include <QWebView>
-#include <QDebug>
+#include <QToolBar>
+#include <QToolButton>
+#include <QIcon>
+#include <QAction>
+#include <QMessageBox>
 #include <qjson/parser.h>
+#include <QDesktopServices>
+
+#include <QStack>
 
 #include <QNetworkProxy>
 #include <QNetworkCookieJar>
@@ -33,50 +40,19 @@
 #include "restclient.h"
 #include "settings.h"
 #include "skydrivefilelistmodel.h"
+#include "liveservices.h"
+#include "skydriveservice.h"
+#include "authorizedialog.h"
 
-class PersistentCookieJar : public QNetworkCookieJar
-{
-public:
-    PersistentCookieJar(QObject *parent = 0) :
-        QNetworkCookieJar(parent)
-    {
-        load();
-    }
-
-    virtual ~PersistentCookieJar()
-    {
-        save();
-    }
-
-    void load()
-    {
-        QByteArray rawCookies = Settings::instance()->cookies();
-        if (!rawCookies.isEmpty())
-            setAllCookies(QNetworkCookie::parseCookies(rawCookies));
-    }
-
-    void save()
-    {
-        QList<QNetworkCookie> cookies = allCookies();
-        QByteArray rawCookies;
-        foreach (const QNetworkCookie &cookie, cookies) {
-            rawCookies.append(cookie.toRawForm());
-            rawCookies.append("\n");
-        }
-        Settings::instance()->setCookies(rawCookies);
-    }
-};
+#include <QDebug>
 
 class MainWindowPrivate
 {
 public:
     MainWindowPrivate() :
         q_ptr(0),
-        windowContentFrame(0),
+        backAction(0),
         windowContentListView(0),
-        signInPopupFrame(0),
-        signInPopupWebView(0),
-        client(new RestClient),
         pendingNetworkReply(0),
         fileListModel(new SkyDriveFileListModel)
     {
@@ -84,16 +60,12 @@ public:
 
     ~MainWindowPrivate()
     {
+        delete liveServices;
         Settings::instance()->destroy();
-        delete client;
         delete fileListModel;
     }
 
-    void applyToolBar()
-    {
-    }
-
-    void applyProxySettings()
+    void applyApplicationProxy()
     {
         QList<QNetworkProxy> systemProxies = QNetworkProxyFactory::systemProxyForQuery();
         foreach (QNetworkProxy proxy, systemProxies) {
@@ -104,70 +76,45 @@ public:
         }
     }
 
-    QFrame *windowContent()
+    void createToolBar()
     {
         Q_Q(MainWindow);
-        if (!windowContentFrame) {
-            windowContentFrame = new QFrame(q);
-            windowContentListView = new QListView(windowContentFrame);
-            QVBoxLayout *layout = new QVBoxLayout(windowContentFrame);
-            windowContentFrame->setLayout(layout);
-            windowContentFrame->layout()->addWidget(windowContentListView);
-
-            q->connect(windowContentListView, SIGNAL(doubleClicked(QModelIndex)), q, SLOT(openRemoteItem(QModelIndex)));
+        if (!toolBar) {
+            toolBar = q->addToolBar("Navigation");
+            backAction = toolBar->addAction(QIcon::fromTheme("back"), "Back", q, SLOT(navigateBack()));
+            backAction->setEnabled(false);
+            q->addToolBar(toolBar);
         }
-        return windowContentFrame;
     }
 
-    QFrame *signInPopup()
+    QListView *windowContent()
     {
         Q_Q(MainWindow);
-        if (!signInPopupFrame) {
-            signInPopupFrame = new QFrame(q, Qt::Dialog);
-            signInPopupFrame->setWindowModality(Qt::ApplicationModal);
-            if (!signInPopupWebView)
-                signInPopupWebView = new QWebView(signInPopupFrame);
-            QVBoxLayout *layout = new QVBoxLayout(signInPopupFrame);
-            layout->setContentsMargins(0, 0, 0, 0);
-            layout->addWidget(signInPopupWebView);
-            signInPopupFrame->setLayout(layout);
-
-            PersistentCookieJar *cookieJar = new PersistentCookieJar(q);
-            signInPopupWebView->page()->networkAccessManager()->setCookieJar(cookieJar);
-            cookieJar->setParent(q);
-
-            QUrl url;
-            url.setHost("login.live.com");
-            url.setScheme("https");
-            url.setPath("/oauth20_authorize.srf");
-            url.addQueryItem("client_id", "000000004C0C2510");
-            url.addQueryItem("scope", "wl.signin wl.basic wl.skydrive wl.skydrive_update");
-            url.addQueryItem("response_type", "token");
-            url.addQueryItem("redirect_url", "https://login.live.com/oauth20_desktop.srf");
-
-            q->connect(signInPopupWebView, SIGNAL(urlChanged(QUrl)), q, SLOT(checkSignInSuccess(QUrl)));
-            q->connect(signInPopupWebView, SIGNAL(loadFinished(bool)), q, SLOT(checkRequestsPermissions(bool)));
-            signInPopupWebView->load(url);
+        if (!windowContentListView) {
+            windowContentListView = new QListView(q);
+            windowContentListView->setModel(fileListModel);
+            q->connect(windowContentListView, SIGNAL(doubleClicked(QModelIndex)), q, SLOT(openRemoteItem(QModelIndex)));
         }
-
-        return signInPopupFrame;
+        return windowContentListView;
     }
 
 private:
     Q_DECLARE_PUBLIC(MainWindow)
     MainWindow *q_ptr;
 
-    QFrame *windowContentFrame;
+    LiveServices *liveServices;
+
+    QAction *backAction;
+
+    QToolBar *toolBar;
     QListView *windowContentListView;
-    QFrame *signInPopupFrame;
-    QWebView *signInPopupWebView;
 
     RestClient *client;
     QNetworkReply *pendingNetworkReply;
 
     SkyDriveFileListModel *fileListModel;
 
-    QString accessToken;
+    QStack<QString> folderHierarchyQueue;
     QJson::Parser jsonParser;
 };
 
@@ -175,93 +122,87 @@ MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent), d_ptr(new MainWindowPrivate)
 {
     d_ptr->q_ptr = this;
-    d_ptr->applyProxySettings();
-    d_ptr->applyToolBar();
+    d_ptr->applyApplicationProxy();
+    d_ptr->createToolBar();
 
     setWindowTitle("QSkyDrive Explorer");
 
-    if (Settings::instance()->value("ui/maximized").toBool())
-        setWindowState(Qt::WindowMaximized);
-    else
-        resize(qMax(Settings::instance()->value("ui/width").toInt(), 300),
-               qMax(Settings::instance()->value("ui/height").toInt(), 200));
-
+    setContentsMargins(6, 6, 6, 6);
     setCentralWidget(d_ptr->windowContent());
+
+    restoreGeometry(Settings::instance()->value("ui/geometry").toByteArray());
+    restoreState(Settings::instance()->value("ui/state").toByteArray());
 
     signIn();
 }
 
 MainWindow::~MainWindow()
 {
-    Settings::instance()->setValue("ui/width", width());
-    Settings::instance()->setValue("ui/height", height());
-    Settings::instance()->setValue("ui/maximized", isMaximized());
+
     delete d_ptr;
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+    Settings::instance()->setValue("ui/state", saveState());
+    Settings::instance()->setValue("ui/geometry", saveGeometry());
+    QMainWindow::closeEvent(event);
 }
 
 void MainWindow::signIn()
 {
     Q_D(MainWindow);
-    if (d->accessToken.isEmpty())
-        d->signInPopup();
-}
-
-void MainWindow::checkSignInSuccess(const QUrl &url)
-{
-    Q_D(MainWindow);
-    QStringList parameters = url.fragment().split("&");
-    QHash<QString, QString> parameterMap;
-    foreach (QString parameter, parameters) {
-        QStringList parameterPair = parameter.split("=");
-        if (parameterPair.count() == 2)
-            parameterMap.insert(parameterPair[0], parameterPair[1]);
+    QString refreshToken = Settings::instance()->value("live/refreshToken").toString();
+    if (refreshToken.isEmpty()) {
+        AuthorizeDialog *dialog = new AuthorizeDialog(this);
+        if (dialog->exec() == QDialog::Accepted)
+            refreshToken = Settings::instance()->value("live/refreshToken").toString();
+        else
+            close();
+        delete dialog;
     }
+    d->liveServices = new LiveServices(this);
+    connect(d->liveServices, SIGNAL(signInSucceded()), d->liveServices->skyDriveService(), SLOT(loadFolderList()));
+    connect(d->liveServices->skyDriveService(), SIGNAL(folderListLoaded(QVariant)), this, SLOT(displayFolderList(QVariant)));
 
-    if (parameterMap.contains("access_token")) {
-        d->accessToken = parameterMap.value("access_token");
-        d->signInPopup()->hide();
-        qDebug() << Q_FUNC_INFO << "Success!";
-        loadFolderList();
-    }
-}
-
-void MainWindow::checkRequestsPermissions(bool ok)
-{
-    Q_D(MainWindow);
-    Q_UNUSED(ok);
-    if (d->accessToken.isEmpty())
-        d->signInPopup()->show();
-}
-
-void MainWindow::loadFolderList(const QString &folderId)
-{
-    Q_D(MainWindow);
-    QUrl url;
-    url.setHost("apis.live.net");
-    url.setScheme("https");
-    if (folderId.isEmpty())
-        url.setPath("/v5.0/me/skydrive");
-    else
-        url.setPath(QString("/v5.0/%1/files").arg(folderId));
-    url.addQueryItem("access_token", d->accessToken);
-    d->pendingNetworkReply = d->client->request(url);
+    d->liveServices->signIn();
     setCursor(QCursor(Qt::BusyCursor));
-    connect(d->pendingNetworkReply, SIGNAL(readyRead()), this, SLOT(folderListReady()));
 }
 
-void MainWindow::folderListReady()
+void MainWindow::displayFolderList(const QVariant &data)
 {
     Q_D(MainWindow);
-    d->fileListModel->setFileListData(d->jsonParser.parse(d->pendingNetworkReply));
-    d->windowContentListView->setModel(d->fileListModel);
-    d->pendingNetworkReply->deleteLater();
-    d->pendingNetworkReply = 0;
+    d->fileListModel->setFileListData(data);
     setCursor(QCursor(Qt::ArrowCursor));
+    if (d->folderHierarchyQueue.count() == 0)
+        d->backAction->setEnabled(false);
+    else
+        d->backAction->setEnabled(true);
 }
 
 void MainWindow::openRemoteItem(const QModelIndex &index)
 {
+    Q_D(MainWindow);
+    setCursor(QCursor(Qt::BusyCursor));
     QString type = index.data(SkyDriveFileListModel::TypeRole).toString();
-    if (type == "folder")
-        loadFolderList(index.data(SkyDriveFileListModel::IdRole).toString());
+    if (type == "folder") {
+        d->folderHierarchyQueue.push(index.data(SkyDriveFileListModel::ParentIdRole).toString());
+        qDebug() << Q_FUNC_INFO << index.data(SkyDriveFileListModel::DataRole);
+        d->liveServices->skyDriveService()->loadFolderList(index.data(SkyDriveFileListModel::IdRole).toString());
+    } else {
+        QDesktopServices::openUrl(index.data(SkyDriveFileListModel::SourceRole).toUrl());
+        qDebug() << Q_FUNC_INFO << index.data(SkyDriveFileListModel::DataRole);
+        setCursor(QCursor(Qt::ArrowCursor));
+    }
+}
+
+void MainWindow::navigateBack()
+{
+    Q_D(MainWindow);
+    qDebug() << Q_FUNC_INFO;
+    setCursor(QCursor(Qt::BusyCursor));
+    if (d->folderHierarchyQueue.count() > 0)
+        d->liveServices->skyDriveService()->loadFolderList(d->folderHierarchyQueue.pop());
+    else
+        d->liveServices->skyDriveService()->loadFolderList();
 }
