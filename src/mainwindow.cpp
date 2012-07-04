@@ -17,43 +17,26 @@
  ***************************************************************************/
 
 #include "mainwindow.h"
+#include "ui_mainwindow.h"
 
-#include <QFrame>
-#include <QVBoxLayout>
-#include <QPushButton>
-#include <QListView>
-#include <QWebView>
-#include <QToolBar>
-#include <QToolButton>
-#include <QIcon>
-#include <QAction>
-#include <QMessageBox>
-#include <qjson/parser.h>
-#include <QDesktopServices>
-
-#include <QStack>
-
-#include <QNetworkProxy>
-#include <QNetworkCookieJar>
-#include <QNetworkReply>
-
-#include "restclient.h"
 #include "settings.h"
-#include "skydrivefilelistmodel.h"
 #include "liveservices.h"
+#include "skydrivefilelistmodel.h"
 #include "skydriveservice.h"
 #include "authorizedialog.h"
 
-#include <QDebug>
+#include <QTimer>
+#include <QStack>
+#include <QNetworkProxy>
+#include <QDesktopServices>
+#include <QProgressBar>
+#include <QSpacerItem>
 
 class MainWindowPrivate
 {
 public:
     MainWindowPrivate() :
         q_ptr(0),
-        backAction(0),
-        windowContentListView(0),
-        pendingNetworkReply(0),
         fileListModel(new SkyDriveFileListModel)
     {
     }
@@ -63,6 +46,16 @@ public:
         delete liveServices;
         Settings::instance()->destroy();
         delete fileListModel;
+    }
+
+    void finalizeUI()
+    {
+        Q_Q(MainWindow);
+        q->ui->listView->setModel(fileListModel);
+        q->ui->toolBar->setEnabled(false);
+
+        q->connect(q->ui->listView, SIGNAL(doubleClicked(QModelIndex)), q, SLOT(_q_openRemoteItem(QModelIndex)));
+        q->connect(q->ui->actionBack, SIGNAL(triggered()), q, SLOT(_q_navigateBack()));
     }
 
     void applyApplicationProxy()
@@ -76,26 +69,62 @@ public:
         }
     }
 
-    void createToolBar()
+    void _q_signIn()
     {
         Q_Q(MainWindow);
-        if (!toolBar) {
-            toolBar = q->addToolBar("Navigation");
-            backAction = toolBar->addAction(QIcon::fromTheme("back"), "Back", q, SLOT(navigateBack()));
-            backAction->setEnabled(false);
-            q->addToolBar(toolBar);
+        QString refreshToken = Settings::instance()->value("live/refreshToken").toString();
+        if (refreshToken.isEmpty()) {
+            AuthorizeDialog *dialog = new AuthorizeDialog(q);
+            if (dialog->exec() == QDialog::Accepted)
+                refreshToken = Settings::instance()->value("live/refreshToken").toString();
+            else
+                q->close();
+            delete dialog;
+        }
+        liveServices = new LiveServices(q);
+        q->connect(liveServices, SIGNAL(signInSucceded()), liveServices->skyDriveService(), SLOT(loadFolderList()));
+        q->connect(liveServices->skyDriveService(), SIGNAL(folderListLoaded(QVariant)), q, SLOT(_q_displayFolderList(QVariant)));
+
+        liveServices->signIn();
+        q->setCursor(QCursor(Qt::BusyCursor));
+    }
+
+    void _q_displayFolderList(const QVariant &data)
+    {
+        Q_Q(MainWindow);
+        q->ui->toolBar->setEnabled(true);
+        fileListModel->setFileListData(data);
+        q->setCursor(QCursor(Qt::ArrowCursor));
+        if (folderHierarchyQueue.count() == 0)
+            q->ui->actionBack->setEnabled(false);
+        else
+            q->ui->actionBack->setEnabled(true);
+    }
+
+    void _q_openRemoteItem(const QModelIndex &index)
+    {
+        Q_Q(MainWindow);
+        q->setCursor(QCursor(Qt::BusyCursor));
+        QString type = index.data(SkyDriveFileListModel::TypeRole).toString();
+        if (type == "folder" || type == "album") {
+            folderHierarchyQueue.push(index.data(SkyDriveFileListModel::ParentIdRole).toString());
+            qDebug() << Q_FUNC_INFO << index.data(SkyDriveFileListModel::DataRole);
+            liveServices->skyDriveService()->loadFolderList(index.data(SkyDriveFileListModel::IdRole).toString());
+        } else {
+            QDesktopServices::openUrl(index.data(SkyDriveFileListModel::SourceRole).toUrl());
+            qDebug() << Q_FUNC_INFO << index.data(SkyDriveFileListModel::DataRole);
+            q->setCursor(QCursor(Qt::ArrowCursor));
         }
     }
 
-    QListView *windowContent()
+    void _q_navigateBack()
     {
         Q_Q(MainWindow);
-        if (!windowContentListView) {
-            windowContentListView = new QListView(q);
-            windowContentListView->setModel(fileListModel);
-            q->connect(windowContentListView, SIGNAL(doubleClicked(QModelIndex)), q, SLOT(openRemoteItem(QModelIndex)));
-        }
-        return windowContentListView;
+        q->setCursor(QCursor(Qt::BusyCursor));
+        if (folderHierarchyQueue.count() > 0)
+            liveServices->skyDriveService()->loadFolderList(folderHierarchyQueue.pop());
+        else
+            liveServices->skyDriveService()->loadFolderList();
     }
 
 private:
@@ -103,43 +132,32 @@ private:
     MainWindow *q_ptr;
 
     LiveServices *liveServices;
-
-    QAction *backAction;
-
-    QToolBar *toolBar;
-    QListView *windowContentListView;
-
-    RestClient *client;
-    QNetworkReply *pendingNetworkReply;
-
     SkyDriveFileListModel *fileListModel;
 
     QStack<QString> folderHierarchyQueue;
-    QJson::Parser jsonParser;
 };
 
+
 MainWindow::MainWindow(QWidget *parent) :
-    QMainWindow(parent), d_ptr(new MainWindowPrivate)
+    QMainWindow(parent),
+    d_ptr(new MainWindowPrivate),
+    ui(new Ui::MainWindow)
 {
     d_ptr->q_ptr = this;
-    d_ptr->applyApplicationProxy();
-    d_ptr->createToolBar();
-
-    setWindowTitle("QSkyDrive Explorer");
-
-    setContentsMargins(6, 6, 6, 6);
-    setCentralWidget(d_ptr->windowContent());
-
+    ui->setupUi(this);
     restoreGeometry(Settings::instance()->value("ui/geometry").toByteArray());
     restoreState(Settings::instance()->value("ui/state").toByteArray());
 
-    signIn();
+    d_ptr->applyApplicationProxy();
+    d_ptr->finalizeUI();
+
+    setCursor(QCursor(Qt::BusyCursor));
+    QTimer::singleShot(1000, this, SLOT(_q_signIn()));
 }
 
 MainWindow::~MainWindow()
 {
-
-    delete d_ptr;
+    delete ui;
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -149,60 +167,4 @@ void MainWindow::closeEvent(QCloseEvent *event)
     QMainWindow::closeEvent(event);
 }
 
-void MainWindow::signIn()
-{
-    Q_D(MainWindow);
-    QString refreshToken = Settings::instance()->value("live/refreshToken").toString();
-    if (refreshToken.isEmpty()) {
-        AuthorizeDialog *dialog = new AuthorizeDialog(this);
-        if (dialog->exec() == QDialog::Accepted)
-            refreshToken = Settings::instance()->value("live/refreshToken").toString();
-        else
-            close();
-        delete dialog;
-    }
-    d->liveServices = new LiveServices(this);
-    connect(d->liveServices, SIGNAL(signInSucceded()), d->liveServices->skyDriveService(), SLOT(loadFolderList()));
-    connect(d->liveServices->skyDriveService(), SIGNAL(folderListLoaded(QVariant)), this, SLOT(displayFolderList(QVariant)));
-
-    d->liveServices->signIn();
-    setCursor(QCursor(Qt::BusyCursor));
-}
-
-void MainWindow::displayFolderList(const QVariant &data)
-{
-    Q_D(MainWindow);
-    d->fileListModel->setFileListData(data);
-    setCursor(QCursor(Qt::ArrowCursor));
-    if (d->folderHierarchyQueue.count() == 0)
-        d->backAction->setEnabled(false);
-    else
-        d->backAction->setEnabled(true);
-}
-
-void MainWindow::openRemoteItem(const QModelIndex &index)
-{
-    Q_D(MainWindow);
-    setCursor(QCursor(Qt::BusyCursor));
-    QString type = index.data(SkyDriveFileListModel::TypeRole).toString();
-    if (type == "folder") {
-        d->folderHierarchyQueue.push(index.data(SkyDriveFileListModel::ParentIdRole).toString());
-        qDebug() << Q_FUNC_INFO << index.data(SkyDriveFileListModel::DataRole);
-        d->liveServices->skyDriveService()->loadFolderList(index.data(SkyDriveFileListModel::IdRole).toString());
-    } else {
-        QDesktopServices::openUrl(index.data(SkyDriveFileListModel::SourceRole).toUrl());
-        qDebug() << Q_FUNC_INFO << index.data(SkyDriveFileListModel::DataRole);
-        setCursor(QCursor(Qt::ArrowCursor));
-    }
-}
-
-void MainWindow::navigateBack()
-{
-    Q_D(MainWindow);
-    qDebug() << Q_FUNC_INFO;
-    setCursor(QCursor(Qt::BusyCursor));
-    if (d->folderHierarchyQueue.count() > 0)
-        d->liveServices->skyDriveService()->loadFolderList(d->folderHierarchyQueue.pop());
-    else
-        d->liveServices->skyDriveService()->loadFolderList();
-}
+#include "moc_mainwindow.cpp"

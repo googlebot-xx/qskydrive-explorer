@@ -4,6 +4,8 @@ LIBS += -lqjson
 
 OBJECTS_DIR = .obj
 MOC_DIR = .moc
+UI_DIR = .ui
+RCC_DIR = .rcc
 
 DESTDIR = bin
 

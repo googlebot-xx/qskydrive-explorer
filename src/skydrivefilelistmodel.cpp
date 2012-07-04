@@ -18,6 +18,8 @@
 
 #include "skydrivefilelistmodel.h"
 
+#include <QIcon>
+
 #include <QDebug>
 
 class SkyDriveFileListModelPrivate
@@ -25,6 +27,8 @@ class SkyDriveFileListModelPrivate
 public:
     SkyDriveFileListModelPrivate()
     {
+        folderIcon = QIcon::fromTheme("folder");
+        documentIcon = QIcon::fromTheme("document");
     }
 
     ~SkyDriveFileListModelPrivate()
@@ -36,6 +40,9 @@ private:
     SkyDriveFileListModel *q_ptr;
 
     QList<QVariantMap> fileList;
+
+    QIcon folderIcon;
+    QIcon documentIcon;
 };
 
 SkyDriveFileListModel::SkyDriveFileListModel(QObject *parent) :
@@ -73,6 +80,13 @@ QVariant SkyDriveFileListModel::data(const QModelIndex &index, int role) const
             return d->fileList.at(index.row()).value("parent_id", "");
         else if (role == SkyDriveFileListModel::SourceRole)
             return d->fileList.at(index.row()).value("source", "");
+        else if (role == Qt::DecorationRole) {
+            QString type = d->fileList.at(index.row()).value("type").toString();
+            if (type == "folder" || type == "album")
+                return d->folderIcon;
+            else
+                return d->documentIcon;
+        }
     }
     return QVariant();
 }

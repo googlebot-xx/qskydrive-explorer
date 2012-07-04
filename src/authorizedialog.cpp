@@ -84,6 +84,8 @@ void AuthorizeDialog::checkRefreshTokenResult()
         Settings::instance()->setValue("live/refreshToken", result.value("refresh_token").toString());
         Settings::instance()->setValue("live/authenticationToken", result.value("authentication_token").toString());
         accept();
+    } else {
+        reject();
     }
 
     refreshTokenReply->deleteLater();

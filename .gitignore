@@ -1,5 +1,7 @@
 .moc
 .obj
+.ui
+.rcc
 bin
 *.pro.user
 Makefile

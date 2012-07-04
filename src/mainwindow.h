@@ -20,32 +20,35 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QUrl>
-#include <QModelIndex>
+
+namespace Ui {
+class MainWindow;
+}
 
 class MainWindowPrivate;
 
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
+    
 public:
     explicit MainWindow(QWidget *parent = 0);
-    virtual ~MainWindow();
-
-signals:
-
+    ~MainWindow();
+    
 protected:
     void closeEvent(QCloseEvent *event);
 
-private slots:
-    void signIn();
-    void openRemoteItem(const QModelIndex &index);
-    void displayFolderList(const QVariant &data);
-    void navigateBack();
+private:
+    Q_PRIVATE_SLOT(d_func(), void _q_signIn())
+    Q_PRIVATE_SLOT(d_func(), void _q_displayFolderList(QVariant))
+    Q_PRIVATE_SLOT(d_func(), void _q_openRemoteItem(QModelIndex))
+    Q_PRIVATE_SLOT(d_func(), void _q_navigateBack())
 
 private:
     Q_DECLARE_PRIVATE(MainWindow)
     MainWindowPrivate *d_ptr;
+
+    Ui::MainWindow *ui;
 };
 
 #endif // MAINWINDOW_H
