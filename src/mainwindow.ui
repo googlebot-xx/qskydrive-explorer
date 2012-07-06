@@ -41,6 +41,7 @@
    <addaction name="actionNewFolder"/>
    <addaction name="separator"/>
    <addaction name="actionUpload"/>
+   <addaction name="actionRemove"/>
   </widget>
   <action name="actionBack">
    <property name="icon">
@@ -84,7 +85,7 @@
   </action>
   <action name="actionUpload">
    <property name="icon">
-    <iconset theme="browser-download">
+    <iconset theme="add">
      <normaloff/>
     </iconset>
    </property>
@@ -93,6 +94,14 @@
    </property>
    <property name="toolTip">
     <string>Upload</string>
+   </property>
+  </action>
+  <action name="actionRemove">
+   <property name="icon">
+    <iconset theme="remove"/>
+   </property>
+   <property name="text">
+    <string>Remove</string>
    </property>
   </action>
  </widget>
