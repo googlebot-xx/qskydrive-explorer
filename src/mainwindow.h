@@ -43,6 +43,7 @@ private:
     Q_PRIVATE_SLOT(d_func(), void _q_displayFolderList(QVariant))
     Q_PRIVATE_SLOT(d_func(), void _q_openRemoteItem(QModelIndex))
     Q_PRIVATE_SLOT(d_func(), void _q_navigateBack())
+    Q_PRIVATE_SLOT(d_func(), void _q_navigateHome())
 
 private:
     Q_DECLARE_PRIVATE(MainWindow)

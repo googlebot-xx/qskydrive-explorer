@@ -56,6 +56,7 @@ public:
 
         q->connect(q->ui->listView, SIGNAL(doubleClicked(QModelIndex)), q, SLOT(_q_openRemoteItem(QModelIndex)));
         q->connect(q->ui->actionBack, SIGNAL(triggered()), q, SLOT(_q_navigateBack()));
+        q->connect(q->ui->actionHome, SIGNAL(triggered()), q, SLOT(_q_navigateHome()));
     }
 
     void applyApplicationProxy()
@@ -125,6 +126,13 @@ public:
             liveServices->skyDriveService()->loadFolderList(folderHierarchyQueue.pop());
         else
             liveServices->skyDriveService()->loadFolderList();
+    }
+
+    void _q_navigateHome()
+    {
+        Q_Q(MainWindow);
+        q->setCursor(QCursor(Qt::BusyCursor));
+        liveServices->skyDriveService()->loadFolderList();
     }
 
 private:
