@@ -60,6 +60,8 @@ public:
         q->ui->toolBar->setEnabled(false);
 
         q->ui->actionRemove->setEnabled(false);
+        q->ui->actionForward->setEnabled(false);
+        q->ui->actionUpload->setEnabled(false);
 
         q->connect(q->ui->listView, SIGNAL(doubleClicked(QModelIndex)), q, SLOT(_q_openRemoteItem(QModelIndex)));
         q->connect(q->ui->listView->selectionModel(), SIGNAL(selectionChanged(QItemSelection,QItemSelection)), q, SLOT(_q_updateFileSelection(QItemSelection,QItemSelection)));
@@ -109,10 +111,15 @@ public:
         q->ui->toolBar->setEnabled(true);
         fileListModel->setFileListData(data);
         q->setCursor(QCursor(Qt::ArrowCursor));
-        if (folderHierarchyStack.count() == 0)
+        if (navigationStack.isEmpty())
             q->ui->actionBack->setEnabled(false);
         else
             q->ui->actionBack->setEnabled(true);
+
+        if (reverseNavigationStack.isEmpty())
+            q->ui->actionForward->setEnabled(false);
+        else
+            q->ui->actionForward->setEnabled(true);
     }
 
     void _q_openRemoteItem(const QModelIndex &index)
@@ -122,7 +129,7 @@ public:
         QString type = index.data(SkyDriveFileListModel::TypeRole).toString();
         if (type == "folder" || type == "album") {
             currentFolderId = index.data(SkyDriveFileListModel::IdRole).toString();
-            folderHierarchyStack.push(index.data(SkyDriveFileListModel::ParentIdRole).toString());
+            navigationStack.push(index.data(SkyDriveFileListModel::ParentIdRole).toString());
             qDebug() << Q_FUNC_INFO << index.data(SkyDriveFileListModel::DataRole);
             liveServices->skyDriveService()->loadFolderList(currentFolderId);
         } else {
@@ -136,22 +143,34 @@ public:
     {
         Q_Q(MainWindow);
         q->setCursor(QCursor(Qt::BusyCursor));
-        if (folderHierarchyStack.count() > 0) {
-            currentFolderId = folderHierarchyStack.pop();
-            liveServices->skyDriveService()->loadFolderList(currentFolderId);
-        } else
+        if (navigationStack.isEmpty()) {
             liveServices->skyDriveService()->loadFolderList();
+        } else {
+            reverseNavigationStack.push(currentFolderId);
+            currentFolderId = navigationStack.pop();
+            liveServices->skyDriveService()->loadFolderList(currentFolderId);
+        }
     }
 
     void _q_navigateForward()
     {
-        // TODO: Implement forward step navigation
+        Q_Q(MainWindow);
+        q->setCursor(QCursor(Qt::BusyCursor));
+        if (reverseNavigationStack.isEmpty()) {
+            liveServices->skyDriveService()->loadFolderList();
+        } else {
+            navigationStack.push(currentFolderId);
+            currentFolderId = reverseNavigationStack.pop();
+            liveServices->skyDriveService()->loadFolderList(currentFolderId);
+        }
     }
 
     void _q_navigateHome()
     {
         Q_Q(MainWindow);
         q->setCursor(QCursor(Qt::BusyCursor));
+        navigationStack.clear();
+        reverseNavigationStack.clear();
         liveServices->skyDriveService()->loadFolderList();
     }
 
@@ -194,7 +213,8 @@ private:
     SkyDriveFileListModel *fileListModel;
     QInputDialog *newFolderDialog;
 
-    QStack<QString> folderHierarchyStack;
+    QStack<QString> navigationStack;
+    QStack<QString> reverseNavigationStack;
     QString currentFolderId;
 };
 
