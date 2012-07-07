@@ -35,6 +35,7 @@ public:
 
     QNetworkReply *get(const QUrl &url);
     QNetworkReply *post(const QUrl &url, const QByteArray &data);
+    QNetworkReply *post(const QUrl &url, const QVariant &data);
 
 signals:
     void requestFinished(QNetworkReply *reply);

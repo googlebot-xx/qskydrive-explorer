@@ -22,6 +22,8 @@
 #include <QNetworkProxy>
 #include <QNetworkReply>
 
+#include <qjson/serializer.h>
+
 class RestClientPrivate
 {
 public:
@@ -81,6 +83,16 @@ QNetworkReply *RestClient::post(const QUrl &url, const QByteArray &data)
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
     request.setUrl(url);
     return d->networkManager->post(request, data);
+}
+
+QNetworkReply *RestClient::post(const QUrl &url, const QVariant &data)
+{
+    Q_D(RestClient);
+    qDebug() << Q_FUNC_INFO << url << QJson::Serializer().serialize(data);
+    QNetworkRequest request;
+    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/json");
+    request.setUrl(url);
+    return d->networkManager->post(request, QJson::Serializer().serialize(data));
 }
 
 RestClient *RestClient::instance()

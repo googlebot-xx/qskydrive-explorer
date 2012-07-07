@@ -5,6 +5,7 @@
 
 #include <QNetworkReply>
 #include <qjson/parser.h>
+#include <QDebug>
 
 class SkyDriveServicePrivate
 {
@@ -29,6 +30,13 @@ public:
 
         pendingNetworkReply->deleteLater();
         pendingNetworkReply = 0;
+    }
+
+    void _q_folderCreateReady()
+    {
+        Q_Q(SkyDriveService);
+        qDebug() << pendingNetworkReply->readAll();
+        emit q->folderListUpdated();
     }
 
 private:
@@ -66,6 +74,31 @@ void SkyDriveService::loadFolderList(const QString &folderId)
     url.addQueryItem("access_token", d->liveServices->accessToken());
     d->pendingNetworkReply = RestClient::instance()->get(url);
     connect(d->pendingNetworkReply, SIGNAL(readyRead()), this, SLOT(_q_folderListReady()));
+}
+
+void SkyDriveService::createFolder(const QString &parentId, const QString &folderName)
+{
+    Q_D(SkyDriveService);
+    QUrl url;
+    url.setHost("apis.live.net");
+    url.setScheme("https");
+    if (parentId.isEmpty())
+        url.setPath("/v5.0/me/skydrive");
+    else
+        url.setPath(QString("/v5.0/%1").arg(parentId));
+    url.addQueryItem("access_token", d->liveServices->accessToken());
+
+    QVariantMap data;
+    data.insert("name", folderName);
+    data.insert("access_token", d->liveServices->accessToken());
+
+    d->pendingNetworkReply = RestClient::instance()->post(url, data);
+    connect(d->pendingNetworkReply, SIGNAL(readyRead()), this, SLOT(_q_folderCreateReady()));
+}
+
+void SkyDriveService::updateUserQuota()
+{
+    emit userQuotaUpdated(QVariant());
 }
 
 #include "moc_skydriveservice.cpp"

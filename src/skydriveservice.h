@@ -16,12 +16,17 @@ public:
 
 signals:
     void folderListLoaded(const QVariant &data);
+    void folderListUpdated();
+    void userQuotaUpdated(const QVariant &data);
 
 public slots:
     void loadFolderList(const QString &folderId = "");
+    void createFolder(const QString &parentId, const QString &folderName);
+    void updateUserQuota();
 
 private:
     Q_PRIVATE_SLOT(d_func(), void _q_folderListReady())
+    Q_PRIVATE_SLOT(d_func(), void _q_folderCreateReady())
 
 private:
     Q_DECLARE_PRIVATE(SkyDriveService)

@@ -43,7 +43,12 @@ private:
     Q_PRIVATE_SLOT(d_func(), void _q_displayFolderList(QVariant))
     Q_PRIVATE_SLOT(d_func(), void _q_openRemoteItem(QModelIndex))
     Q_PRIVATE_SLOT(d_func(), void _q_navigateBack())
+    Q_PRIVATE_SLOT(d_func(), void _q_navigateForward())
     Q_PRIVATE_SLOT(d_func(), void _q_navigateHome())
+    Q_PRIVATE_SLOT(d_func(), void _q_createFolder())
+    Q_PRIVATE_SLOT(d_func(), void _q_uploadFiles())
+    Q_PRIVATE_SLOT(d_func(), void _q_removeFiles())
+    Q_PRIVATE_SLOT(d_func(), void _q_refreshFolderList())
 
 private:
     Q_DECLARE_PRIVATE(MainWindow)

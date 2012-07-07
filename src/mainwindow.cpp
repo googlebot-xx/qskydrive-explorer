@@ -30,14 +30,15 @@
 #include <QNetworkProxy>
 #include <QDesktopServices>
 #include <QProgressBar>
-#include <QSpacerItem>
+#include <QInputDialog>
 
 class MainWindowPrivate
 {
 public:
     MainWindowPrivate() :
         q_ptr(0),
-        fileListModel(new SkyDriveFileListModel)
+        fileListModel(new SkyDriveFileListModel),
+        newFolderDialog(0)
     {
     }
 
@@ -51,12 +52,20 @@ public:
     void finalizeUI()
     {
         Q_Q(MainWindow);
+        newFolderDialog = new QInputDialog(q);
+        newFolderDialog->setWindowTitle("Create new folder");
+        newFolderDialog->setLabelText("Folder name:");
+
         q->ui->listView->setModel(fileListModel);
         q->ui->toolBar->setEnabled(false);
 
         q->connect(q->ui->listView, SIGNAL(doubleClicked(QModelIndex)), q, SLOT(_q_openRemoteItem(QModelIndex)));
         q->connect(q->ui->actionBack, SIGNAL(triggered()), q, SLOT(_q_navigateBack()));
+        q->connect(q->ui->actionForward, SIGNAL(triggered()), q, SLOT(_q_navigateForward()));
         q->connect(q->ui->actionHome, SIGNAL(triggered()), q, SLOT(_q_navigateHome()));
+        q->connect(q->ui->actionNewFolder, SIGNAL(triggered()), q, SLOT(_q_createFolder()));
+        q->connect(q->ui->actionUpload, SIGNAL(triggered()), q, SLOT(_q_uploadFiles()));
+        q->connect(q->ui->actionRemove, SIGNAL(triggered()), q, SLOT(_q_removeFiles()));
     }
 
     void applyApplicationProxy()
@@ -85,6 +94,7 @@ public:
         liveServices = new LiveServices(q);
         q->connect(liveServices, SIGNAL(signInSucceded()), liveServices->skyDriveService(), SLOT(loadFolderList()));
         q->connect(liveServices->skyDriveService(), SIGNAL(folderListLoaded(QVariant)), q, SLOT(_q_displayFolderList(QVariant)));
+        q->connect(liveServices->skyDriveService(), SIGNAL(folderListUpdated()), q, SLOT(_q_refreshFolderList()));
 
         liveServices->signIn();
         q->setCursor(QCursor(Qt::BusyCursor));
@@ -96,7 +106,7 @@ public:
         q->ui->toolBar->setEnabled(true);
         fileListModel->setFileListData(data);
         q->setCursor(QCursor(Qt::ArrowCursor));
-        if (folderHierarchyQueue.count() == 0)
+        if (folderHierarchyStack.count() == 0)
             q->ui->actionBack->setEnabled(false);
         else
             q->ui->actionBack->setEnabled(true);
@@ -108,9 +118,10 @@ public:
         q->setCursor(QCursor(Qt::BusyCursor));
         QString type = index.data(SkyDriveFileListModel::TypeRole).toString();
         if (type == "folder" || type == "album") {
-            folderHierarchyQueue.push(index.data(SkyDriveFileListModel::ParentIdRole).toString());
+            currentFolderId = index.data(SkyDriveFileListModel::IdRole).toString();
+            folderHierarchyStack.push(index.data(SkyDriveFileListModel::ParentIdRole).toString());
             qDebug() << Q_FUNC_INFO << index.data(SkyDriveFileListModel::DataRole);
-            liveServices->skyDriveService()->loadFolderList(index.data(SkyDriveFileListModel::IdRole).toString());
+            liveServices->skyDriveService()->loadFolderList(currentFolderId);
         } else {
             QDesktopServices::openUrl(index.data(SkyDriveFileListModel::SourceRole).toUrl());
             qDebug() << Q_FUNC_INFO << index.data(SkyDriveFileListModel::DataRole);
@@ -122,10 +133,16 @@ public:
     {
         Q_Q(MainWindow);
         q->setCursor(QCursor(Qt::BusyCursor));
-        if (folderHierarchyQueue.count() > 0)
-            liveServices->skyDriveService()->loadFolderList(folderHierarchyQueue.pop());
-        else
+        if (folderHierarchyStack.count() > 0) {
+            currentFolderId = folderHierarchyStack.pop();
+            liveServices->skyDriveService()->loadFolderList(currentFolderId);
+        } else
             liveServices->skyDriveService()->loadFolderList();
+    }
+
+    void _q_navigateForward()
+    {
+        // TODO: Implement forward step navigation
     }
 
     void _q_navigateHome()
@@ -135,14 +152,37 @@ public:
         liveServices->skyDriveService()->loadFolderList();
     }
 
+    void _q_createFolder()
+    {
+        if (newFolderDialog->exec() == QDialog::Accepted)
+            liveServices->skyDriveService()->createFolder(currentFolderId, newFolderDialog->textValue());
+    }
+
+    void _q_uploadFiles()
+    {
+        // TODO: Implement file upload
+    }
+
+    void _q_removeFiles()
+    {
+        // TODO: Implement file removal
+    }
+
+    void _q_refreshFolderList()
+    {
+        liveServices->skyDriveService()->loadFolderList(currentFolderId);
+    }
+
 private:
     Q_DECLARE_PUBLIC(MainWindow)
     MainWindow *q_ptr;
 
     LiveServices *liveServices;
     SkyDriveFileListModel *fileListModel;
+    QInputDialog *newFolderDialog;
 
-    QStack<QString> folderHierarchyQueue;
+    QStack<QString> folderHierarchyStack;
+    QString currentFolderId;
 };
 
 
