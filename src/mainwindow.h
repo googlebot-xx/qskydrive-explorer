@@ -49,6 +49,7 @@ private:
     Q_PRIVATE_SLOT(d_func(), void _q_uploadFiles())
     Q_PRIVATE_SLOT(d_func(), void _q_removeFiles())
     Q_PRIVATE_SLOT(d_func(), void _q_refreshFolderList())
+    Q_PRIVATE_SLOT(d_func(), void _q_updateFileSelection(QItemSelection,QItemSelection))
 
 private:
     Q_DECLARE_PRIVATE(MainWindow)

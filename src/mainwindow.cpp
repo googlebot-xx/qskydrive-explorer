@@ -59,7 +59,10 @@ public:
         q->ui->listView->setModel(fileListModel);
         q->ui->toolBar->setEnabled(false);
 
+        q->ui->actionRemove->setEnabled(false);
+
         q->connect(q->ui->listView, SIGNAL(doubleClicked(QModelIndex)), q, SLOT(_q_openRemoteItem(QModelIndex)));
+        q->connect(q->ui->listView->selectionModel(), SIGNAL(selectionChanged(QItemSelection,QItemSelection)), q, SLOT(_q_updateFileSelection(QItemSelection,QItemSelection)));
         q->connect(q->ui->actionBack, SIGNAL(triggered()), q, SLOT(_q_navigateBack()));
         q->connect(q->ui->actionForward, SIGNAL(triggered()), q, SLOT(_q_navigateForward()));
         q->connect(q->ui->actionHome, SIGNAL(triggered()), q, SLOT(_q_navigateHome()));
@@ -171,6 +174,16 @@ public:
     void _q_refreshFolderList()
     {
         liveServices->skyDriveService()->loadFolderList(currentFolderId);
+    }
+
+    void _q_updateFileSelection(const QItemSelection &selected, QItemSelection &deselected)
+    {
+        Q_Q(MainWindow);
+        Q_UNUSED(deselected);
+        if (selected.indexes().count() == 0)
+            q->ui->actionRemove->setEnabled(false);
+        else
+            q->ui->actionRemove->setEnabled(true);
     }
 
 private:
