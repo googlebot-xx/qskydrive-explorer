@@ -31,6 +31,8 @@
 #include <QDesktopServices>
 #include <QProgressBar>
 #include <QInputDialog>
+#include <QMessageBox>
+#include <QFileDialog>
 
 class MainWindowPrivate
 {
@@ -38,7 +40,8 @@ public:
     MainWindowPrivate() :
         q_ptr(0),
         fileListModel(new SkyDriveFileListModel),
-        newFolderDialog(0)
+        newFolderDialog(0),
+        quotaProgressBar(0)
     {
     }
 
@@ -56,12 +59,18 @@ public:
         newFolderDialog->setWindowTitle("Create new folder");
         newFolderDialog->setLabelText("Folder name:");
 
+        quotaProgressBar = new QProgressBar(q->ui->toolBar);
+        quotaProgressBar->setMinimum(0);
+        quotaProgressBar->setMaximum(0);
+
+        q->ui->toolBar->addWidget(createSpacer(q->ui->toolBar));
+        q->ui->toolBar->addWidget(quotaProgressBar);
+
         q->ui->listView->setModel(fileListModel);
         q->ui->toolBar->setEnabled(false);
 
         q->ui->actionRemove->setEnabled(false);
         q->ui->actionForward->setEnabled(false);
-        q->ui->actionUpload->setEnabled(false);
 
         q->connect(q->ui->listView, SIGNAL(doubleClicked(QModelIndex)), q, SLOT(_q_openRemoteItem(QModelIndex)));
         q->connect(q->ui->listView->selectionModel(), SIGNAL(selectionChanged(QItemSelection,QItemSelection)), q, SLOT(_q_updateFileSelection(QItemSelection,QItemSelection)));
@@ -84,6 +93,13 @@ public:
         }
     }
 
+    QWidget *createSpacer(QWidget *parent = 0)
+    {
+        QWidget *spacer = new QWidget(parent);
+        spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        return spacer;
+    }
+
     void _q_signIn()
     {
         Q_Q(MainWindow);
@@ -98,8 +114,10 @@ public:
         }
         liveServices = new LiveServices(q);
         q->connect(liveServices, SIGNAL(signInSucceded()), liveServices->skyDriveService(), SLOT(loadFolderList()));
+        q->connect(liveServices, SIGNAL(signInSucceded()), liveServices->skyDriveService(), SLOT(updateUserQuota()));
         q->connect(liveServices->skyDriveService(), SIGNAL(folderListLoaded(QVariant)), q, SLOT(_q_displayFolderList(QVariant)));
         q->connect(liveServices->skyDriveService(), SIGNAL(folderListUpdated()), q, SLOT(_q_refreshFolderList()));
+        q->connect(liveServices->skyDriveService(), SIGNAL(userQuotaUpdated(QVariant)), q, SLOT(_q_displayUserQuota(QVariant)));
 
         liveServices->signIn();
         q->setCursor(QCursor(Qt::BusyCursor));
@@ -182,12 +200,19 @@ public:
 
     void _q_uploadFiles()
     {
-        // TODO: Implement file upload
+        Q_Q(MainWindow);
+        QStringList fileNames = QFileDialog::getOpenFileNames(q, "Upload file(s)");
+        qDebug() << "Files to upload:" << fileNames;
     }
 
     void _q_removeFiles()
     {
-        // TODO: Implement file removal
+        Q_Q(MainWindow);
+        QMessageBox messsageBox(QMessageBox::Question, "Are you sure?", "Do you really want to remove this file(s) or folder(s)?",
+                                QMessageBox::Yes | QMessageBox::No, q);
+        if (messsageBox.exec() == QMessageBox::Accepted) {
+            // TODO: Implement removal.
+        }
     }
 
     void _q_refreshFolderList()
@@ -205,6 +230,14 @@ public:
             q->ui->actionRemove->setEnabled(true);
     }
 
+    void _q_displayUserQuota(const QVariant &data)
+    {
+        QVariantMap quota = data.toMap();
+        quotaProgressBar->setMaximum(100);
+        quotaProgressBar->setMinimum(0);
+        quotaProgressBar->setValue(100 - quota["available"].toDouble() / quota["quota"].toDouble() * 100.0);
+    }
+
 private:
     Q_DECLARE_PUBLIC(MainWindow)
     MainWindow *q_ptr;
@@ -212,6 +245,7 @@ private:
     LiveServices *liveServices;
     SkyDriveFileListModel *fileListModel;
     QInputDialog *newFolderDialog;
+    QProgressBar *quotaProgressBar;
 
     QStack<QString> navigationStack;
     QStack<QString> reverseNavigationStack;

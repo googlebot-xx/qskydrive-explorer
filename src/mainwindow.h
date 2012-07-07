@@ -50,6 +50,7 @@ private:
     Q_PRIVATE_SLOT(d_func(), void _q_removeFiles())
     Q_PRIVATE_SLOT(d_func(), void _q_refreshFolderList())
     Q_PRIVATE_SLOT(d_func(), void _q_updateFileSelection(QItemSelection,QItemSelection))
+    Q_PRIVATE_SLOT(d_func(), void _q_displayUserQuota(QVariant))
 
 private:
     Q_DECLARE_PRIVATE(MainWindow)

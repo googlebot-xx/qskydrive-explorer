@@ -45,6 +45,7 @@ public slots:
 private:
     Q_PRIVATE_SLOT(d_func(), void _q_folderListReady())
     Q_PRIVATE_SLOT(d_func(), void _q_folderCreateReady())
+    Q_PRIVATE_SLOT(d_func(), void _q_userQuotaReady())
 
 private:
     Q_DECLARE_PRIVATE(SkyDriveService)
