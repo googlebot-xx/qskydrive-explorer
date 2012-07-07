@@ -36,9 +36,6 @@ public:
     void setValue(const QString &key, const QVariant &value);
     QVariant value(const QString &key);
 
-    void setCookies(const QByteArray &rawCookiesData);
-    QByteArray cookies();
-
 private:
     Settings();
 

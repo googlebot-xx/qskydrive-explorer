@@ -112,7 +112,7 @@ public:
                 q->close();
             delete dialog;
         }
-        liveServices = new LiveServices(q);
+        liveServices = new LiveServices(refreshToken, q);
         q->connect(liveServices, SIGNAL(signInSucceded()), liveServices->skyDriveService(), SLOT(loadFolderList()));
         q->connect(liveServices, SIGNAL(signInSucceded()), liveServices->skyDriveService(), SLOT(updateUserQuota()));
         q->connect(liveServices->skyDriveService(), SIGNAL(folderListLoaded(QVariant)), q, SLOT(_q_displayFolderList(QVariant)));

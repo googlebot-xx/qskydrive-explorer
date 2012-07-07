@@ -34,8 +34,6 @@ public:
         pendingSignInReply(0),
         skyDriveService(0)
     {
-        refreshToken = Settings::instance()->value("live/refreshToken").toString();
-        authorizationToken = Settings::instance()->value("live/authorizationToken").toString();
     }
 
     ~LiveServicesPrivate()
@@ -67,16 +65,16 @@ private:
     SkyDriveService *skyDriveService;
 
     QString refreshToken;
-    QString authorizationToken;
 
     QString accessToken;
     QJson::Parser parser;
 };
 
-LiveServices::LiveServices(QObject *parent) :
+LiveServices::LiveServices(const QString &refreshToken, QObject *parent) :
     QObject(parent), d_ptr(new LiveServicesPrivate)
 {
     d_ptr->q_ptr = this;
+    d_ptr->refreshToken = refreshToken;
 }
 
 LiveServices::~LiveServices()

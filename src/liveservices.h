@@ -28,7 +28,7 @@ class LiveServices : public QObject
 {
     Q_OBJECT
 public:
-    explicit LiveServices(QObject *parent = 0);
+    explicit LiveServices(const QString &refreshToken, QObject *parent = 0);
     virtual ~LiveServices();
 
     SkyDriveService *skyDriveService();

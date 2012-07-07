@@ -82,23 +82,3 @@ QVariant Settings::value(const QString &key)
     Q_D(Settings);
     return d->settings->value(key);
 }
-
-void Settings::setCookies(const QByteArray &rawCookiesData)
-{
-    Q_D(Settings);
-    QString cookieStorage = QFileInfo(d->settings->fileName()).absolutePath() + QDir::separator() + "cookies";
-    QFile file(cookieStorage);
-    if (file.open(QFile::WriteOnly))
-        file.write(rawCookiesData);
-    file.close();
-}
-
-QByteArray Settings::cookies()
-{
-    Q_D(Settings);
-    QString cookieStorage = QFileInfo(d->settings->fileName()).absolutePath() + QDir::separator() + "cookies";
-    QFile file(cookieStorage);
-    if (file.open(QFile::ReadOnly))
-        return file.readAll();
-    return QByteArray();
-}
