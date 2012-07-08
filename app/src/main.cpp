@@ -21,7 +21,6 @@
 
 #include "settings.h"
 #include "mainwindow.h"
-#include "restclient.h"
 
 int main(int argc, char **argv)
 {
@@ -30,6 +29,5 @@ int main(int argc, char **argv)
     window->show();
     int result = app.exec();
     delete window;
-    RestClient::instance()->destroy();
     return result;
 }

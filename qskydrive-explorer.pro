@@ -1,15 +1,7 @@
-QT += core gui network webkit
+TEMPLATE = subdirs
 
-LIBS += -lqjson
-
-OBJECTS_DIR = .obj
-MOC_DIR = .moc
-UI_DIR = .ui
-RCC_DIR = .rcc
-
-DESTDIR = bin
-
-include(src/src.pri)
+SUBDIRS += lib \
+    app \
 
 OTHER_FILES += LICENSE \
     README

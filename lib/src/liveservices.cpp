@@ -20,7 +20,6 @@
 
 #include "restclient.h"
 #include "skydriveservice.h"
-#include "settings.h"
 
 #include <QNetworkReply>
 #include <qjson/parser.h>
