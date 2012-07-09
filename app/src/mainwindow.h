@@ -51,6 +51,8 @@ private:
     Q_PRIVATE_SLOT(d_func(), void _q_refreshFolderList())
     Q_PRIVATE_SLOT(d_func(), void _q_updateFileSelection(QItemSelection,QItemSelection))
     Q_PRIVATE_SLOT(d_func(), void _q_displayUserQuota(QVariant))
+    Q_PRIVATE_SLOT(d_func(), void _q_updateUploadProgress(qint64,qint64))
+    Q_PRIVATE_SLOT(d_func(), void _q_closeUploadProgressDialog())
 
 private:
     Q_DECLARE_PRIVATE(MainWindow)

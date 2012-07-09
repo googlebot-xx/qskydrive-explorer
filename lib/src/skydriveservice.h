@@ -36,16 +36,24 @@ signals:
     void folderListLoaded(const QVariant &data);
     void folderListUpdated();
     void userQuotaUpdated(const QVariant &data);
+    void itemRemoved();
+    void itemUploadProgress(qint64 bytesSent, qint64 bytesTotal);
+    void itemUploaded();
 
 public slots:
     void loadFolderList(const QString &folderId = "");
     void createFolder(const QString &parentId, const QString &folderName);
     void updateUserQuota();
+    void removeItem(const QString &itemId);
+    void uploadItem(const QString &parentId, const QString &path);
+    void cancelItemUpload();
 
 private:
     Q_PRIVATE_SLOT(d_func(), void _q_folderListReady())
     Q_PRIVATE_SLOT(d_func(), void _q_folderCreateReady())
     Q_PRIVATE_SLOT(d_func(), void _q_userQuotaReady())
+    Q_PRIVATE_SLOT(d_func(), void _q_processRemoveItemResult())
+    Q_PRIVATE_SLOT(d_func(), void _q_processUploadItemResult())
 
 private:
     Q_DECLARE_PRIVATE(SkyDriveService)

@@ -33,6 +33,7 @@
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QProgressDialog>
 
 class MainWindowPrivate
 {
@@ -41,7 +42,8 @@ public:
         q_ptr(0),
         fileListModel(new SkyDriveFileListModel),
         newFolderDialog(0),
-        quotaProgressBar(0)
+        quotaProgressBar(0),
+        uploadProgressDialog(0)
     {
     }
 
@@ -62,6 +64,13 @@ public:
         quotaProgressBar = new QProgressBar(q->ui->toolBar);
         quotaProgressBar->setMinimum(0);
         quotaProgressBar->setMaximum(0);
+
+        uploadProgressDialog = new QProgressDialog(q);
+        uploadProgressDialog->setWindowTitle("Uploading file(s)");
+        uploadProgressDialog->setMinimum(0);
+        uploadProgressDialog->setMaximum(100);
+        uploadProgressDialog->setAutoClose(false);
+        uploadProgressDialog->setAutoReset(false);
 
         q->ui->toolBar->addWidget(createSpacer(q->ui->toolBar));
         q->ui->toolBar->addWidget(quotaProgressBar);
@@ -118,6 +127,12 @@ public:
         q->connect(liveServices->skyDriveService(), SIGNAL(folderListLoaded(QVariant)), q, SLOT(_q_displayFolderList(QVariant)));
         q->connect(liveServices->skyDriveService(), SIGNAL(folderListUpdated()), q, SLOT(_q_refreshFolderList()));
         q->connect(liveServices->skyDriveService(), SIGNAL(userQuotaUpdated(QVariant)), q, SLOT(_q_displayUserQuota(QVariant)));
+        q->connect(liveServices->skyDriveService(), SIGNAL(itemRemoved()), q, SLOT(_q_refreshFolderList()));
+        q->connect(liveServices->skyDriveService(), SIGNAL(itemUploaded()), q, SLOT(_q_refreshFolderList()));
+        q->connect(liveServices->skyDriveService(), SIGNAL(itemUploadProgress(qint64,qint64)), q, SLOT(_q_updateUploadProgress(qint64,qint64)));
+        q->connect(liveServices->skyDriveService(), SIGNAL(itemUploaded()), q, SLOT(_q_closeUploadProgressDialog()));
+
+        q->connect(uploadProgressDialog, SIGNAL(rejected()), liveServices->skyDriveService(), SLOT(cancelItemUpload()));
 
         liveServices->signIn();
         q->setCursor(QCursor(Qt::BusyCursor));
@@ -138,6 +153,8 @@ public:
             q->ui->actionForward->setEnabled(false);
         else
             q->ui->actionForward->setEnabled(true);
+
+        q->ui->actionRemove->setEnabled(false);
     }
 
     void _q_openRemoteItem(const QModelIndex &index)
@@ -168,6 +185,7 @@ public:
             currentFolderId = navigationStack.pop();
             liveServices->skyDriveService()->loadFolderList(currentFolderId);
         }
+        q->ui->actionRemove->setEnabled(false);
     }
 
     void _q_navigateForward()
@@ -181,6 +199,7 @@ public:
             currentFolderId = reverseNavigationStack.pop();
             liveServices->skyDriveService()->loadFolderList(currentFolderId);
         }
+        q->ui->actionRemove->setEnabled(false);
     }
 
     void _q_navigateHome()
@@ -190,6 +209,7 @@ public:
         navigationStack.clear();
         reverseNavigationStack.clear();
         liveServices->skyDriveService()->loadFolderList();
+        q->ui->actionRemove->setEnabled(false);
     }
 
     void _q_createFolder()
@@ -201,18 +221,21 @@ public:
     void _q_uploadFiles()
     {
         Q_Q(MainWindow);
-        QStringList fileNames = QFileDialog::getOpenFileNames(q, "Upload file(s)");
-        qDebug() << "Files to upload:" << fileNames;
+        QString fileName = QFileDialog::getOpenFileName(q, "Upload file(s)");
+        qDebug() << "Files to upload:" << fileName;
+        liveServices->skyDriveService()->uploadItem(currentFolderId, fileName);
+        uploadProgressDialog->open();
     }
 
     void _q_removeFiles()
     {
         Q_Q(MainWindow);
-        QMessageBox messsageBox(QMessageBox::Question, "Are you sure?", "Do you really want to remove this file(s) or folder(s)?",
+        QMessageBox messsageBox(QMessageBox::Question, "Are you sure?", "Do you really want to remove this file or folder?",
                                 QMessageBox::Yes | QMessageBox::No, q);
-        if (messsageBox.exec() == QMessageBox::Accepted) {
-            // TODO: Implement removal.
+        if (messsageBox.exec() == QMessageBox::Yes) {
+            liveServices->skyDriveService()->removeItem(q->ui->listView->selectionModel()->selectedIndexes().at(0).data(SkyDriveFileListModel::IdRole).toString());
         }
+        qDebug() << messsageBox.result();
     }
 
     void _q_refreshFolderList()
@@ -238,6 +261,18 @@ public:
         quotaProgressBar->setValue(100 - quota["available"].toDouble() / quota["quota"].toDouble() * 100.0);
     }
 
+    void _q_updateUploadProgress(qint64 bytesSent, qint64 bytesTotal)
+    {
+        qDebug() << Q_FUNC_INFO << bytesSent << bytesTotal;
+        uploadProgressDialog->setValue((double)bytesSent/(double)bytesTotal * 100);
+    }
+
+    void _q_closeUploadProgressDialog()
+    {
+        qDebug() << Q_FUNC_INFO;
+        uploadProgressDialog->close();
+    }
+
 private:
     Q_DECLARE_PUBLIC(MainWindow)
     MainWindow *q_ptr;
@@ -246,6 +281,7 @@ private:
     SkyDriveFileListModel *fileListModel;
     QInputDialog *newFolderDialog;
     QProgressBar *quotaProgressBar;
+    QProgressDialog *uploadProgressDialog;
 
     QStack<QString> navigationStack;
     QStack<QString> reverseNavigationStack;

@@ -95,6 +95,24 @@ QNetworkReply *RestClient::post(const QUrl &url, const QVariant &data)
     return d->networkManager->post(request, QJson::Serializer().serialize(data));
 }
 
+QNetworkReply *RestClient::remove(const QUrl &url)
+{
+    Q_D(RestClient);
+    qDebug() << Q_FUNC_INFO << url;
+    QNetworkRequest request;
+    request.setUrl(url);
+    return d->networkManager->sendCustomRequest(request, "DELETE");
+}
+
+QNetworkReply *RestClient::put(const QUrl &url, QIODevice *data)
+{
+    Q_D(RestClient);
+    qDebug() << Q_FUNC_INFO << url;
+    QNetworkRequest request;
+    request.setUrl(url);
+    return d->networkManager->sendCustomRequest(request, "PUT", data);
+}
+
 RestClient *RestClient::instance()
 {
     if (!RestClientPrivate::instance)

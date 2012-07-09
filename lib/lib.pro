@@ -12,4 +12,3 @@ RCC_DIR = ../.rcc
 DESTDIR = ../bin
 
 include(src/src.pri)
-
